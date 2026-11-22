@@ -1,0 +1,1 @@
+# LeadPilot has no third-party dependencies. This file only helps hosting platforms detect Python.

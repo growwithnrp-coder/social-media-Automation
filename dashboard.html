@@ -1,0 +1,305 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="robots" content="noindex">
+<title>LeadPilot</title>
+<style>
+:root{--bg:#f5f6fa;--card:#fff;--ink:#1b1f2a;--mute:#6b7280;--line:#e5e7ee;--brand:#4f46e5;--brand2:#eef2ff;--ok:#16a34a;--warn:#d97706;--bad:#dc2626;--hot:#ef4444}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.45 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;background:var(--bg);color:var(--ink)}
+header{background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:6px;padding:10px 16px;flex-wrap:wrap}
+header h1{font-size:18px;margin:0 14px 0 0;color:var(--brand)}
+nav button{background:none;border:0;padding:8px 12px;border-radius:8px;cursor:pointer;font:inherit;color:var(--mute);font-weight:600}
+nav button.on{background:var(--brand2);color:var(--brand)}
+main{max-width:1180px;margin:0 auto;padding:18px 16px 60px}
+.grid{display:grid;gap:12px}.g4{grid-template-columns:repeat(auto-fit,minmax(140px,1fr))}.g2{grid-template-columns:repeat(auto-fit,minmax(320px,1fr))}
+.card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:14px}
+.card h3{margin:0 0 10px;font-size:15px}
+.stat b{display:block;font-size:26px}.stat span{color:var(--mute);font-size:12px}
+button.btn,a.btn{background:var(--brand);color:#fff;border:0;padding:8px 13px;border-radius:8px;cursor:pointer;font:inherit;font-weight:600;text-decoration:none;display:inline-block}
+.btn.sec{background:var(--brand2);color:var(--brand)}.btn.wa{background:#16a34a}.btn.red{background:#fee2e2;color:var(--bad)}.btn.sm{padding:5px 9px;font-size:12px}
+.btn:disabled{opacity:.5;cursor:not-allowed}
+input,select,textarea{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:#fff;color:var(--ink);width:100%}
+textarea{min-height:90px;resize:vertical}
+label{display:block;font-size:12px;color:var(--mute);margin:8px 0 3px;font-weight:600}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.row>*{flex:0 0 auto}.fl{flex:1 1 150px!important}
+table{width:100%;border-collapse:collapse}th,td{text-align:left;padding:8px;border-bottom:1px solid var(--line);vertical-align:middle}
+th{font-size:12px;color:var(--mute);text-transform:uppercase;letter-spacing:.03em}
+tr.click{cursor:pointer}tr.click:hover{background:#fafbff}
+.tag{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;font-weight:700;background:#eef0f6;color:#475069}
+.tag.hot{background:#fee2e2;color:var(--hot)}.tag.ok{background:#dcfce7;color:var(--ok)}.tag.warn{background:#fef3c7;color:var(--warn)}
+.bar{height:10px;background:#eef0f6;border-radius:99px;overflow:hidden}.bar i{display:block;height:100%;background:var(--brand)}
+.mute{color:var(--mute)}.small{font-size:12px}.scroll{overflow-x:auto}
+.modal{position:fixed;inset:0;background:rgba(15,18,30,.5);display:flex;align-items:flex-start;justify-content:center;padding:30px 12px;overflow:auto;z-index:20}
+.modal>div{background:#fff;border-radius:14px;max-width:760px;width:100%;padding:18px}
+.hist{max-height:200px;overflow:auto;border:1px solid var(--line);border-radius:8px;padding:8px}.hist div{padding:3px 0;border-bottom:1px dashed var(--line)}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#111827;color:#fff;padding:10px 16px;border-radius:10px;z-index:50;max-width:90vw}
+.msg{white-space:pre-wrap;background:#f8fafc;border:1px solid var(--line);border-radius:8px;padding:8px;font-size:13px}
+.warnbox{background:#fffbeb;border:1px solid #fde68a;color:#92400e;border-radius:10px;padding:10px;margin-bottom:12px}
+.okc{color:var(--ok);font-weight:700}.badc{color:var(--bad);font-weight:700}
+code{background:#eef0f6;padding:1px 5px;border-radius:5px;font-size:12px;word-break:break-all}
+#login{max-width:340px;margin:12vh auto;padding:0 16px}
+</style>
+</head>
+<body>
+<div id="login" style="display:none">
+  <div class="card"><h2 style="margin-top:0;color:var(--brand)">LeadPilot</h2>
+    <label>Password</label><input type="password" id="pw" autofocus>
+    <p class="badc small" id="lerr"></p>
+    <button class="btn" style="width:100%" id="loginBtn">Log in</button></div>
+</div>
+<div id="shell" style="display:none">
+  <header><h1>LeadPilot</h1><nav id="nav"></nav><span style="flex:1"></span><button class="btn sec sm" data-act="logout">Log out</button></header>
+  <main id="app"></main>
+</div>
+<div id="modalHost"></div>
+
+<script>
+'use strict';
+let S=null,view='dashboard',filters={stage:'all',q:''},openId=null;
+const esc=s=>String(s==null?'':s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const fmt=t=>new Date(t).toLocaleString([], {day:'2-digit',month:'short',hour:'2-digit',minute:'2-digit'});
+const todayStr=()=>{const d=new Date();return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+const L=()=>S.leads, byId=id=>S.leads.find(l=>l.id===id);
+const SN=()=>Object.fromEntries(S.stages);
+function toast(m){const t=document.createElement('div');t.className='toast';t.textContent=m;document.body.appendChild(t);setTimeout(()=>t.remove(),3200)}
+
+async function api(path,o={}){
+  const r=await fetch(path,{method:o.method||'GET',headers:{'Content-Type':'application/json','X-LP':'1'},body:o.body!==undefined?JSON.stringify(o.body):undefined,credentials:'same-origin'});
+  if(r.status===401&&path!=='/api/login'){showLogin();throw new Error('Not logged in')}
+  const j=await r.json().catch(()=>({}));
+  if(!r.ok)throw new Error(j.error||('HTTP '+r.status));
+  return j;
+}
+function showLogin(){document.getElementById('shell').style.display='none';document.getElementById('login').style.display='block'}
+async function doLogin(){
+  try{await api('/api/login',{method:'POST',body:{password:document.getElementById('pw').value}});document.getElementById('login').style.display='none';await boot()}
+  catch(e){document.getElementById('lerr').textContent=e.message}
+}
+document.getElementById('loginBtn').onclick=doLogin;
+document.getElementById('pw').addEventListener('keydown',e=>{if(e.key==='Enter')doLogin()});
+async function boot(){
+  try{S=await api('/api/state')}catch(e){return}
+  document.getElementById('login').style.display='none';document.getElementById('shell').style.display='block';render();
+}
+async function refresh(){try{S=await api('/api/state');if(!document.querySelector('.modal'))render()}catch(e){}}
+setInterval(()=>{const a=document.activeElement;if(S&&!document.querySelector('.modal')&&!(a&&/INPUT|TEXTAREA|SELECT/.test(a.tagName)))refresh()},30000);
+
+function fill(t,l){const c=S.config;return t.replace(/\{name\}/g,l.name||'').replace(/\{category\}/g,l.category||'business').replace(/\{city\}/g,l.city||'your city').replace(/\{rating\}/g,l.rating||'').replace(/\{reviews\}/g,l.reviews||'').replace(/\{my_name\}/g,c.my_name||'').replace(/\{company\}/g,c.company||'').replace(/\{link\}/g,l.link).replace(/\{portfolio\}/g,c.portfolio||'')}
+function tplKey(l){return l.stage==='new'?'first':l.stage==='contacted'?'followup':'ask'}
+function heat(l){return l.inbound*5+l.clicks*3+Math.min(l.opens,3)+(l.secs>20?2:0)}
+const replied=l=>['replied','number','called','meeting','closed'].includes(l.stage);
+
+function nav(){
+  const items=[['dashboard','Dashboard'],['leads','Leads'],['messages','Messages'],['finder','Auto-finder'],['settings','Settings']];
+  document.getElementById('nav').innerHTML=items.map(([k,n])=>`<button class="${view===k?'on':''}" data-act="view" data-v="${k}">${n}</button>`).join('');
+}
+function render(){nav();document.getElementById('app').innerHTML=({dashboard:vDash,leads:vLeads,messages:vMessages,finder:vFinder,settings:vSettings})[view]()}
+
+function vDash(){
+  const ls=L(),n=ls.length,cfg=S.config,sn=SN();
+  const contacted=ls.filter(l=>l.stage!=='new').length,opened=ls.filter(l=>l.opens>0).length,clicked=ls.filter(l=>l.clicks>0).length;
+  const rep=ls.filter(replied).length,nums=ls.filter(l=>['number','called','meeting','closed'].includes(l.stage)).length;
+  const called=ls.filter(l=>['called','meeting','closed'].includes(l.stage)).length,meet=ls.filter(l=>['meeting','closed'].includes(l.stage)).length;
+  const hot=ls.filter(l=>['replied','number'].includes(l.stage)||l.bot_step===9&&!['closed','lost'].includes(l.stage));
+  const warm=ls.filter(l=>['new','contacted'].includes(l.stage)&&(l.opens>0||l.clicks>0)).sort((a,b)=>heat(b)-heat(a));
+  const due=ls.filter(l=>l.next_followup&&l.next_followup<=todayStr()&&!['closed','lost','meeting'].includes(l.stage));
+  const max=Math.max(1,n),rate=(a,b)=>b?Math.round(a/b*100)+'%':'–';
+  const funnel=[['Total leads',n],['Contacted',contacted],['Opened our link',opened],['Clicked a button',clicked],['Replied',rep],['Number received',nums],['Called',called],['Meeting fixed',meet]];
+  const mx=Math.max(1,...S.per_day.map(x=>x.n));
+  const cats={};ls.forEach(l=>{const k=l.category||'Other';cats[k]=cats[k]||{n:0,r:0,m:0};cats[k].n++;if(replied(l))cats[k].r++;if(['meeting','closed'].includes(l.stage))cats[k].m++});
+  const item=(l,sub)=>`<div class="row" style="padding:6px 0;border-bottom:1px solid var(--line)"><div class="fl"><b>${esc(l.name)}</b><br><span class="small mute">${sub}</span></div><button class="btn sm" data-act="open" data-id="${l.id}">Open</button></div>`;
+  return `
+  ${!cfg.google?`<div class="warnbox">Google Places key not set, so the auto-finder is off. See Settings.</div>`:''}
+  <div class="grid g4">
+    <div class="card stat"><b>${n}</b><span>Total leads</span></div>
+    <div class="card stat"><b>${contacted}</b><span>Contacted</span></div>
+    <div class="card stat"><b>${opened}</b><span>Opened link (${rate(opened,contacted)})</span></div>
+    <div class="card stat"><b>${rep}</b><span>Replied (${rate(rep,contacted)})</span></div>
+    <div class="card stat"><b>${nums}</b><span>Numbers received</span></div>
+    <div class="card stat"><b>${meet}</b><span>Meetings fixed</span></div>
+    <div class="card stat"><b>${S.sent_today}/${cfg.daily_limit}</b><span>Sent today</span></div>
+  </div>
+  <div class="grid g2" style="margin-top:12px">
+    <div class="card"><h3>🔥 Needs you now (${hot.length})</h3>${hot.map(l=>item(l,`${sn[l.stage]}${l.contact_number?' · '+esc(l.contact_number):''}${l.bot_step===9?' · bot handed over':''}`)).join('')||'<span class="mute">Nobody yet. Replies and numbers land here.</span>'}</div>
+    <div class="card"><h3>👀 Opened or clicked, no reply (${warm.length})</h3>${warm.slice(0,12).map(l=>item(l,`${l.opens} opens · ${l.clicks} clicks${l.secs?' · '+l.secs+'s on page':''}`)).join('')||'<span class="mute">None yet.</span>'}</div>
+    <div class="card"><h3>⏰ Follow-ups due (${due.length})</h3>${due.map(l=>item(l,sn[l.stage]+' · due '+l.next_followup)).join('')||'<span class="mute">Nothing due.</span>'}</div>
+    <div class="card"><h3>Funnel</h3>${funnel.map(([nm,v])=>`<div style="margin:8px 0"><div class="row" style="justify-content:space-between"><span>${nm}</span><b>${v}</b></div><div class="bar"><i style="width:${v/max*100}%"></i></div></div>`).join('')}</div>
+    <div class="card"><h3>Messages sent, last 7 days</h3>
+      <div class="row" style="align-items:flex-end;height:110px;gap:10px">${S.per_day.map(x=>`<div style="flex:1;text-align:center"><div style="background:var(--brand);height:${Math.max(3,x.n/mx*80)}px;border-radius:5px"></div><div class="small mute">${x.n}</div><div class="small mute">${x.label}</div></div>`).join('')}</div></div>
+    <div class="card"><h3>By category</h3>${Object.keys(cats).length?`<table><tr><th>Category</th><th>Leads</th><th>Replied</th><th>Meetings</th></tr>${Object.entries(cats).map(([k,v])=>`<tr><td>${esc(k)}</td><td>${v.n}</td><td>${v.r}</td><td>${v.m}</td></tr>`).join('')}</table>`:'<span class="mute">No data yet.</span>'}</div>
+  </div>`;
+}
+
+function filtered(){
+  const q=filters.q.toLowerCase();
+  return L().filter(l=>{
+    if(filters.stage==='warm'){if(!(['new','contacted'].includes(l.stage)&&(l.opens>0||l.clicks>0)))return false}
+    else if(filters.stage!=='all'&&l.stage!==filters.stage)return false;
+    return !q||(l.name+' '+l.category+' '+l.city+' '+l.phone).toLowerCase().includes(q);
+  });
+}
+function vLeads(){
+  const list=filtered(),sn=SN();
+  return `<div class="card"><div class="row">
+    <input class="fl" placeholder="Search name, category, city, phone" value="${esc(filters.q)}" data-bind="q">
+    <select class="fl" data-bind="stage"><option value="all">All stages (${L().length})</option><option value="warm" ${filters.stage==='warm'?'selected':''}>Opened/clicked, no reply</option>${S.stages.map(([k,n])=>`<option value="${k}" ${filters.stage===k?'selected':''}>${n} (${L().filter(l=>l.stage===k).length})</option>`).join('')}</select>
+    <button class="btn" data-act="addManual">+ Add lead</button>
+    <button class="btn sec" data-act="importCsv">Import CSV / v1 backup</button>
+    <a class="btn sec" href="/api/export.csv">Export CSV</a>
+    <input type="file" id="impFile" accept=".csv,.json" style="display:none"></div></div>
+  <div class="card scroll" style="margin-top:12px"><table><tr><th>Business</th><th>Category</th><th>Rating</th><th>Phone</th><th>Stage</th><th>Activity</th><th>Follow-up</th></tr>
+  ${list.slice(0,500).map(l=>`<tr class="click" data-act="open" data-id="${l.id}">
+    <td><b>${esc(l.name)}</b><br><span class="small mute">${esc(l.city)}</span></td><td>${esc(l.category)}</td>
+    <td>${l.rating?esc(l.rating)+'★ ('+esc(l.reviews)+')':'–'}</td><td>${esc(l.phone||'–')}</td>
+    <td><span class="tag ${['replied','number'].includes(l.stage)?'hot':['meeting','closed'].includes(l.stage)?'ok':l.stage==='lost'?'warn':''}">${sn[l.stage]}</span>${l.optout?' <span class="tag warn">opted out</span>':''}</td>
+    <td class="small">👁 ${l.opens} · 👆 ${l.clicks} · ✓✓ ${l.reads} · 💬 ${l.inbound}</td><td>${l.next_followup||'–'}</td></tr>`).join('')||'<tr><td colspan="7" class="mute">No leads.</td></tr>'}
+  </table>${list.length>500?'<p class="small mute">Showing first 500. Use search to narrow.</p>':''}</div>`;
+}
+
+function vMessages(){
+  const T=S.templates,ls=L().filter(l=>l.phone&&!l.optout);
+  const asks=ls.filter(l=>l.stage==='replied'),fol=ls.filter(l=>l.stage==='contacted'&&l.next_followup&&l.next_followup<=todayStr()),firsts=ls.filter(l=>l.stage==='new');
+  const section=(title,arr)=>`<div class="card" style="margin-top:12px"><h3>${title} (${arr.length})</h3>${arr.slice(0,40).map(l=>`<div style="padding:10px 0;border-bottom:1px solid var(--line)"><div class="row" style="justify-content:space-between"><div><b>${esc(l.name)}</b> <span class="small mute">${esc(l.phone)}</span></div><div class="row">${l.mobile?`<button class="btn wa sm" data-act="wa" data-id="${l.id}">Send on WhatsApp</button>`:`<span class="tag warn">Landline: call instead</span>`}<a class="btn sec sm" href="tel:+${esc(l.wa_number)}">Call</a></div></div><div class="msg" style="margin-top:6px">${esc(fill(T[tplKey(l)],l))}</div></div>`).join('')||'<span class="mute">Nothing here.</span>'}${arr.length>40?'<p class="small mute">Showing first 40.</p>':''}</div>`;
+  const ta=(k,label)=>`<label>${label}</label><textarea data-tpl="${k}">${esc(T[k])}</textarea>`;
+  return `<div class="card"><h3>Message templates</h3><p class="small mute">Variables: {name} {category} {city} {rating} {reviews} {my_name} {company} {link} {portfolio}. Saved automatically.</p>
+    ${ta('first','1. First message (you send it, one click)')}${ta('followup','2. Follow-up (no reply after 3 days)')}
+    <h3 style="margin-top:14px">Bot replies (automatic, once they message you)</h3>
+    ${ta('ask','3. Ask for their number')}${ta('reask','4. Ask again, if no number yet')}${ta('thanks','5. After they give a number')}${ta('stop','6. When they say STOP')}</div>
+  <div class="warnbox" style="margin-top:12px">Sent today: <b>${S.sent_today}</b> of your ${S.config.daily_limit}/day limit. Keep first messages human-paced to protect your WhatsApp number.</div>
+  ${section('Replied: ask for their number',asks)}${section('Follow-ups due',fol)}${section('New leads: first message',firsts)}`;
+}
+
+function vFinder(){
+  const c=S.config;
+  return `${!c.google?`<div class="warnbox">Set <code>GOOGLE_API_KEY</code> in .env and restart the server to turn the finder on.</div>`:''}
+  <div class="card"><h3>Add a search</h3><p class="small mute">Runs every day at ${c.daily_hour}:00 (server time zone setting) and adds new matching leads automatically. Only businesses with a listed phone number are added.</p>
+    <div class="row"><div class="fl"><label>Business type</label><input id="jType" placeholder="salon"></div><div class="fl"><label>Area</label><input id="jArea" placeholder="Mangaluru, Karnataka"></div>
+    <div class="fl"><label>Min reviews</label><input id="jRev" type="number" value="100"></div><div class="fl"><label>Min rating</label><input id="jRat" type="number" step="0.1" value="4.0"></div></div>
+    <div class="row" style="margin-top:10px"><label style="margin:0"><input type="checkbox" id="jNoWeb" checked style="width:auto"> Only businesses with no website</label>
+    <button class="btn" data-act="addJob">Add search</button><button class="btn sec" data-act="runJobs" ${S.job_running?'disabled':''}>${S.job_running?'Running…':'Run all now'}</button></div></div>
+  <div class="card scroll" style="margin-top:12px"><table><tr><th>Search</th><th>Filters</th><th>Last run</th><th>Result</th><th></th></tr>
+  ${S.jobs.map(j=>`<tr><td><b>${esc(j.biz_type)}</b> in ${esc(j.area)}</td><td class="small">${j.min_reviews}+ reviews, ${j.min_rating}★${j.no_website?', no website':''}</td><td class="small">${j.last_run?fmt(j.last_run):'never'}</td><td class="small">${esc(j.last_result)}</td>
+  <td class="row"><button class="btn sec sm" data-act="toggleJob" data-id="${j.id}" data-on="${j.active?0:1}">${j.active?'Pause':'Resume'}</button><button class="btn red sm" data-act="delJob" data-id="${j.id}">Delete</button></td></tr>`).join('')||'<tr><td colspan="5" class="mute">No searches yet.</td></tr>'}</table></div>`;
+}
+
+function vSettings(){
+  const c=S.config,ok=b=>b?'<span class="okc">✓ set</span>':'<span class="badc">✗ not set</span>';
+  return `<div class="card"><h3>Connection status</h3>
+  <table>
+  <tr><td>Google Places key (auto-finder)</td><td>${ok(c.google)}</td></tr>
+  <tr><td>WhatsApp Cloud API (WA_TOKEN + WA_PHONE_ID)</td><td>${ok(c.wa_api)}</td></tr>
+  <tr><td>Webhook verify token</td><td>${ok(c.verify_token_set)}</td></tr>
+  <tr><td>Webhook signature check (WA_APP_SECRET)</td><td>${ok(c.app_secret_set)}</td></tr>
+  <tr><td>Portfolio link</td><td>${c.portfolio?esc(c.portfolio):'<span class="badc">✗ not set</span>'}</td></tr>
+  <tr><td>Your WhatsApp number for the chat button</td><td>${ok(c.owner_wa)}</td></tr>
+  <tr><td>Phone alerts (ntfy)</td><td>${ok(c.ntfy)}</td></tr>
+  <tr><td>Approved template name</td><td>${c.template_name?esc(c.template_name):'<span class="mute">none</span>'}</td></tr>
+  </table>
+  <p class="small mute">These come from the <code>.env</code> file on your server. Edit it and restart to change them.</p></div>
+  <div class="card" style="margin-top:12px"><h3>Paste into Meta (WhatsApp → Configuration → Webhook)</h3>
+  <p>Callback URL: <code>${esc(c.webhook_url)}</code></p><p>Verify token: the value of <code>WA_VERIFY_TOKEN</code> in your .env. Subscribe to the <b>messages</b> field.</p></div>`;
+}
+
+/* ---- lead modal */
+async function openLead(id){
+  openId=id;
+  let d;try{d=await api('/api/lead/'+id)}catch(e){toast(e.message);return}
+  const l=d.lead,sn=SN(),c=S.config,msg=fill(S.templates[tplKey(l)],l);
+  const evText=e=>({page_open:'👁 Opened your link',preview_fetch:'🔗 Link preview fetched (not a human)',click_portfolio:'👆 Clicked "See websites we\'ve built"',click_wa:'💬 Clicked "Chat on WhatsApp"',time_on_page:'⏱ Stayed '+e.text+'s on page',wa_in:'⬅ They wrote: '+e.text,wa_out:'➡ We sent: '+e.text,wa_sent:'✓ WhatsApp: sent',wa_delivered:'✓✓ WhatsApp: delivered',wa_read:'✓✓ WhatsApp: READ',wa_failed:'⚠ WhatsApp: failed '+e.text,wa_error:'⚠ Send error: '+e.text})[e.type]||e.text;
+  const evs=d.events.filter(e=>!e.type.startsWith('notified_'));
+  document.getElementById('modalHost').innerHTML=`<div class="modal" data-act="closeBg"><div>
+  <div class="row" style="justify-content:space-between"><h2 style="margin:0">${esc(l.name)}</h2><button class="btn sec sm" data-act="close">Close</button></div>
+  <p class="mute small">${esc(l.category)} · ${esc(l.address||l.city)} ${l.rating?'· '+esc(l.rating)+'★ ('+esc(l.reviews)+')':''} ${l.maps_url?`· <a href="${esc(l.maps_url)}" target="_blank" rel="noopener">Maps</a>`:''} · <a href="${esc(l.link)}" target="_blank" rel="noopener">their link</a></p>
+  <p class="small">👁 ${l.opens} opens · 👆 ${l.clicks} clicks · ✓✓ ${l.reads} reads · 💬 ${l.inbound} replies${l.secs?' · '+l.secs+'s on page':''}</p>
+  <div class="row">
+    <div class="fl"><label>Stage</label><select data-lf="stage" data-id="${l.id}">${S.stages.map(([k,n])=>`<option value="${k}" ${l.stage===k?'selected':''}>${n}</option>`).join('')}</select></div>
+    <div class="fl"><label>Business phone</label><input data-lf="phone" data-id="${l.id}" value="${esc(l.phone)}"></div>
+    <div class="fl"><label>Number they gave us</label><input data-lf="contact_number" data-id="${l.id}" value="${esc(l.contact_number)}"></div>
+    <div class="fl"><label>Next follow-up</label><input type="date" data-lf="next_followup" data-id="${l.id}" value="${esc(l.next_followup)}"></div>
+    <div class="fl"><label>Meeting (date/place)</label><input data-lf="meeting_at" data-id="${l.id}" value="${esc(l.meeting_at)}"></div></div>
+  <label>Notes</label><textarea data-lf="notes" data-id="${l.id}" style="min-height:60px">${esc(l.notes)}</textarea>
+  <label>Message</label><textarea id="compose" style="min-height:100px">${esc(msg)}</textarea>
+  <div class="row" style="margin-top:8px">
+    ${l.mobile&&!l.optout?`<button class="btn wa" data-act="waCompose" data-id="${l.id}">Open in WhatsApp</button>`:''}
+    ${c.wa_api&&!l.optout?`<button class="btn" data-act="apiSend" data-id="${l.id}">Send via API</button>`:''}
+    ${c.wa_api&&c.template_name&&l.opted_in&&!l.optout?`<button class="btn sec" data-act="apiTemplate" data-id="${l.id}">Send approved template</button>`:''}
+    <a class="btn sec" href="tel:+${esc((l.contact_number||l.phone).replace(/\D/g,''))}">Call</a></div>
+  <p class="small mute">"Send via API" only works within 24 hours after they last messaged you. For first contact use the opened WhatsApp or an approved template for opted-in leads.</p>
+  <div class="row" style="margin-top:6px">
+    <button class="btn sec sm" data-act="quick" data-id="${l.id}" data-s="replied">They replied</button>
+    <button class="btn sec sm" data-act="quick" data-id="${l.id}" data-s="number">Gave number</button>
+    <button class="btn sec sm" data-act="quick" data-id="${l.id}" data-s="called">Called</button>
+    <button class="btn sec sm" data-act="quick" data-id="${l.id}" data-s="meeting">Meeting fixed</button>
+    <button class="btn sec sm" data-act="quick" data-id="${l.id}" data-s="closed">Won</button>
+    <button class="btn red sm" data-act="quick" data-id="${l.id}" data-s="lost">Not interested</button></div>
+  <div class="row" style="margin-top:8px"><label style="margin:0"><input type="checkbox" data-lf="opted_in" data-id="${l.id}" ${l.opted_in?'checked':''} style="width:auto"> Opted in (they messaged us or agreed to receive messages)</label>
+    <button class="btn sec sm" data-act="bot" data-id="${l.id}" data-pause="${l.bot_step===9?0:1}">${l.bot_step===9?'Resume bot':'Take over (pause bot)'}</button></div>
+  <label>Timeline</label><div class="hist">${evs.map(e=>`<div><span class="mute small">${fmt(e.t)}</span> ${esc(evText(e))}</div>`).join('')}</div>
+  <div class="row" style="margin-top:10px;justify-content:flex-end"><button class="btn red sm" data-act="delLead" data-id="${l.id}">Delete lead</button></div>
+  </div></div>`;
+}
+async function closeModal(){document.getElementById('modalHost').innerHTML='';openId=null;await refresh();render()}
+
+/* ---- CSV */
+function parseCsv(t){const rows=[];let row=[],cur='',q=false;
+  for(let i=0;i<t.length;i++){const c=t[i];
+    if(q){if(c==='"'){if(t[i+1]==='"'){cur+='"';i++}else q=false}else cur+=c}
+    else if(c==='"')q=true;else if(c===','){row.push(cur);cur=''}
+    else if(c==='\n'||c==='\r'){if(c==='\r'&&t[i+1]==='\n')i++;row.push(cur);cur='';if(row.some(x=>x!==''))rows.push(row);row=[]}
+    else cur+=c}
+  row.push(cur);if(row.some(x=>x!==''))rows.push(row);return rows}
+
+/* ---- events */
+const act=async(fn)=>{try{await fn()}catch(e){toast(e.message)}};
+document.addEventListener('click',e=>{
+  const b=e.target.closest('[data-act]');if(!b)return;
+  const a=b.dataset.act,id=+b.dataset.id;
+  if(a==='closeBg'){if(e.target===b)closeModal();return}
+  if(a==='view'){view=b.dataset.v;render();return}
+  if(a==='open'){openLead(id);return}
+  if(a==='close'){closeModal();return}
+  if(a==='logout'){act(async()=>{await api('/api/logout',{method:'POST',body:{}});S=null;showLogin()});return}
+  act(async()=>{
+    if(a==='addManual'){const name=prompt('Business name?');if(!name)return;const phone=prompt('Phone number?')||'',category=prompt('Category?')||'',city=prompt('City?')||'';await api('/api/lead',{method:'POST',body:{name,phone,category,city}});await refresh()}
+    else if(a==='importCsv'){document.getElementById('impFile').click()}
+    else if(a==='waCompose'){const l=byId(id),text=document.getElementById('compose').value;window.open('https://wa.me/'+l.wa_number+'?text='+encodeURIComponent(text),'_blank','noopener');await api('/api/lead/'+id+'/sent',{method:'POST',body:{kind:tplKey(l)}});toast('Opened WhatsApp. Press send there.');await refresh();openLead(id)}
+    else if(a==='wa'){const l=byId(id);if(S.sent_today>=S.config.daily_limit&&!confirm('You reached your daily limit. Send anyway?'))return;window.open('https://wa.me/'+l.wa_number+'?text='+encodeURIComponent(fill(S.templates[tplKey(l)],l)),'_blank','noopener');await api('/api/lead/'+id+'/sent',{method:'POST',body:{kind:tplKey(l)}});toast('Opened WhatsApp. Press send there.');await refresh()}
+    else if(a==='apiSend'){const t=document.getElementById('compose').value;await api('/api/lead/'+id+'/send',{method:'POST',body:{text:t}});toast('Sent via WhatsApp API');await refresh();openLead(id)}
+    else if(a==='apiTemplate'){await api('/api/lead/'+id+'/template',{method:'POST',body:{}});toast('Template sent');await refresh();openLead(id)}
+    else if(a==='quick'){const s=b.dataset.s;let value='';
+      if(s==='number'){const n=prompt('Phone number they gave?',byId(id).contact_number||'');if(n===null)return;value=n}
+      if(s==='meeting'){const m=prompt('Meeting date, time and place?',byId(id).meeting_at||'');if(m===null)return;value=m}
+      await api('/api/lead/'+id+'/stage',{method:'POST',body:{stage:s,value}});await refresh();openLead(id)}
+    else if(a==='bot'){await api('/api/lead/'+id+'/bot',{method:'POST',body:{pause:b.dataset.pause==='1'}});await refresh();openLead(id)}
+    else if(a==='delLead'){if(confirm('Delete this lead?')){await api('/api/lead/'+id,{method:'DELETE',body:{}});await closeModal()}}
+    else if(a==='addJob'){await api('/api/jobs',{method:'POST',body:{biz_type:document.getElementById('jType').value,area:document.getElementById('jArea').value,min_reviews:document.getElementById('jRev').value,min_rating:document.getElementById('jRat').value,no_website:document.getElementById('jNoWeb').checked}});await refresh();toast('Search added')}
+    else if(a==='runJobs'){await api('/api/jobs/run',{method:'POST',body:{}});toast('Running. New leads appear in a minute or two.');await refresh()}
+    else if(a==='toggleJob'){await api('/api/jobs/'+id,{method:'PATCH',body:{active:b.dataset.on==='1'}});await refresh()}
+    else if(a==='delJob'){if(confirm('Delete this search?')){await api('/api/jobs/'+id,{method:'DELETE',body:{}});await refresh()}}
+  });
+});
+document.addEventListener('input',e=>{
+  const t=e.target;
+  if(t.dataset.bind){filters[t.dataset.bind]=t.value;const pos=t.selectionStart;render();const el=document.querySelector(`[data-bind="${t.dataset.bind}"]`);if(el&&el.tagName==='INPUT'){el.focus();try{el.setSelectionRange(pos,pos)}catch(_){}}return}
+  if(t.dataset.tpl){S.templates[t.dataset.tpl]=t.value;clearTimeout(window._tt);window._tt=setTimeout(()=>act(()=>api('/api/templates',{method:'POST',body:{[t.dataset.tpl]:t.value}})),600);return}
+  if(t.dataset.lf&&t.dataset.lf!=='stage'&&t.type!=='checkbox'){clearTimeout(window._lt);window._lt=setTimeout(()=>act(()=>api('/api/lead/'+t.dataset.id,{method:'PATCH',body:{[t.dataset.lf]:t.value}})),600)}
+});
+document.addEventListener('change',e=>{
+  const t=e.target;
+  if(t.dataset.lf==='stage'){act(async()=>{await api('/api/lead/'+t.dataset.id+'/stage',{method:'POST',body:{stage:t.value}});await refresh();openLead(+t.dataset.id)});return}
+  if(t.dataset.lf&&t.type==='checkbox'){act(()=>api('/api/lead/'+t.dataset.id,{method:'PATCH',body:{[t.dataset.lf]:t.checked}}));return}
+  if(t.id==='impFile'&&t.files[0]){
+    t.files[0].text().then(txt=>act(async()=>{
+      let rows=[];
+      if(t.files[0].name.toLowerCase().endsWith('.json')){const d=JSON.parse(txt);rows=d.leads||[]}
+      else{const r=parseCsv(txt);const h=r[0].map(x=>x.trim().toLowerCase().replace(/\s+/g,'_'));rows=r.slice(1).map(a=>Object.fromEntries(h.map((k,i)=>[k,a[i]])))}
+      const res=await api('/api/import',{method:'POST',body:{leads:rows}});toast(res.added+' imported, '+res.skipped+' skipped (duplicates)');await refresh()}));
+  }
+});
+boot();
+</script>
+</body>
+</html>
